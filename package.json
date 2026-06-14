@@ -1,0 +1,14 @@
+{
+  "name": "voyago-root",
+  "version": "1.0.0",
+  "description": "Voyago Travel AI Planner Root",
+  "scripts": {
+    "install:all": "npm install --prefix client && npm install --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev": "npx concurrently \"npm run dev:client\" \"npm run dev:server\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

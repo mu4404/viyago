@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@theme {
+  --color-darkBg: #0B0F19;
+  --color-cardBg: rgba(30, 41, 59, 0.45);
+}
+
+@layer base {
+  body {
+    @apply bg-[#0B0F19] text-[#F9FAFB] antialiased;
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+/* Custom styles for Premium Aesthetics */
+.glassmorphism {
+  background: rgba(30, 41, 59, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-cyan-400 to-indigo-500;
+}
