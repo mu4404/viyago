@@ -1,9 +1,11 @@
 /**
  * @file planController.ts
  * @description 여행 일정 요청을 검증하고 AI 서비스를 조율하며 MongoDB CRUD를 제어하는 Express 컨트롤러입니다.
+ * 데이터베이스 미연결 시 임시 인메모리 저장소(In-Memory Fallback)를 가동하여 무중단 테스트를 지원합니다.
  */
 
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { generateTravelPlan } from '../services/aiService.js';
 import { TravelPlanModel } from '../models/TravelPlan.js';
 
@@ -14,6 +16,18 @@ const COMPANION_MAP: Record<string, string> = {
   friends: '친구들과 함께',
   family: '가족과 함께',
 };
+
+// MongoDB 오프라인 상태일 때 임시 보관용 인메모리 데이터베이스
+interface InMemoryPlan {
+  _id: string;
+  destination: string;
+  companion: string;
+  duration: number;
+  summary: string;
+  days: any[];
+  createdAt: string;
+}
+let inMemoryDatabase: InMemoryPlan[] = [];
 
 /**
  * @function createTravelPlan
@@ -72,7 +86,7 @@ export const createTravelPlan = async (req: Request, res: Response): Promise<voi
 
 /**
  * @function saveTravelPlan
- * @description 생성된 여행 계획 데이터를 MongoDB에 보관함으로 저장합니다.
+ * @description 생성된 여행 계획 데이터를 MongoDB에 저장하거나, DB가 꺼져있을 시 임시 인메모리에 보관합니다.
  * @param {Request} req Express Request 객체
  * @param {Response} res Express Response 객체
  */
@@ -80,28 +94,53 @@ export const saveTravelPlan = async (req: Request, res: Response): Promise<void>
   try {
     const { destination, companion, duration, summary, days } = req.body;
 
-    // 값 존재 여부 검사
     if (!destination || !companion || !duration || !summary || !days) {
       res.status(400).json({ error: '저장하려는 일정이 불완전합니다. 모든 필드를 채워주세요.' });
       return;
     }
 
-    // 새로운 Mongoose 도큐먼트 생성 및 저장
-    const newPlan = new TravelPlanModel({
-      destination,
-      companion,
-      duration,
-      summary,
-      days,
-    });
+    // MongoDB 연결 활성화 여부 확인 (1: connected)
+    const isDbConnected = mongoose.connection.readyState === 1;
 
-    const saved = await newPlan.save();
-
-    res.status(201).json({
-      success: true,
-      message: '여행 일정이 성공적으로 보관함에 저장되었습니다.',
-      savedId: saved._id,
-    });
+    if (isDbConnected) {
+      // 1. MongoDB가 정상 작동할 때 저장
+      const newPlan = new TravelPlanModel({
+        destination,
+        companion,
+        duration,
+        summary,
+        days,
+      });
+      const saved = await newPlan.save();
+      
+      res.status(201).json({
+        success: true,
+        message: '여행 일정이 MongoDB 보관함에 안전하게 저장되었습니다.',
+        savedId: saved._id,
+      });
+    } else {
+      // 2. MongoDB 오프라인 상태 시 임시 인메모리 폴백 저장
+      console.warn('[DB WARNING] MongoDB is offline. Falling back to temporary In-Memory Database.');
+      
+      const inMemoryId = `mem_${Math.random().toString(36).substr(2, 9)}`;
+      const newPlan: InMemoryPlan = {
+        _id: inMemoryId,
+        destination,
+        companion,
+        duration,
+        summary,
+        days,
+        createdAt: new Date().toISOString(),
+      };
+      
+      inMemoryDatabase.push(newPlan);
+      
+      res.status(201).json({
+        success: true,
+        message: '일시적으로 임시 메모리 보관함에 일정이 저장되었습니다. (MongoDB 연결 안 됨)',
+        savedId: inMemoryId,
+      });
+    }
   } catch (error) {
     console.error('saveTravelPlan Controller Error:', error);
     res.status(500).json({ error: '데이터베이스 저장 처리 중 서버 에러가 발생했습니다.' });
@@ -110,22 +149,87 @@ export const saveTravelPlan = async (req: Request, res: Response): Promise<void>
 
 /**
  * @function getSavedPlans
- * @description MongoDB에 저장된 보관함 내 모든 여행 계획 목록을 내림차순(최신순)으로 반환합니다.
+ * @description 보관된 여행 계획 목록을 조회합니다. DB 상태에 따라 MongoDB 데이터 혹은 인메모리 데이터를 가져옵니다.
  * @param {Request} req Express Request 객체
  * @param {Response} res Express Response 객체
  */
 export const getSavedPlans = async (req: Request, res: Response): Promise<void> => {
   try {
-    // 최신 생성일자 순으로 일정 리스트 조회
-    const plans = await TravelPlanModel.find().sort({ createdAt: -1 });
-    
-    res.status(200).json({
-      success: true,
-      count: plans.length,
-      plans,
-    });
+    const isDbConnected = mongoose.connection.readyState === 1;
+
+    if (isDbConnected) {
+      // 1. MongoDB 데이터 최신순 조회
+      const plans = await TravelPlanModel.find().sort({ createdAt: -1 });
+      res.status(200).json({
+        success: true,
+        count: plans.length,
+        plans,
+      });
+    } else {
+      // 2. 인메모리 폴백 데이터 최신순 정렬 조회
+      console.warn('[DB WARNING] MongoDB is offline. Fetching from temporary In-Memory Database.');
+      const sortedPlans = [...inMemoryDatabase].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      res.status(200).json({
+        success: true,
+        count: sortedPlans.length,
+        plans: sortedPlans,
+      });
+    }
   } catch (error) {
     console.error('getSavedPlans Controller Error:', error);
     res.status(500).json({ error: '일정을 가져오는 중 서버 오류가 발생했습니다.' });
+  }
+};
+
+/**
+ * @function deleteTravelPlan
+ * @description 보관함 내 특정 일정을 ID 기준 삭제합니다. (MongoDB 혹은 인메모리 매칭)
+ * @param {Request} req Express Request 객체
+ * @param {Response} res Express Response 객체
+ */
+export const deleteTravelPlan = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      res.status(400).json({ error: '삭제할 일정의 식별자(ID)가 제공되지 않았습니다.' });
+      return;
+    }
+
+    const isDbConnected = mongoose.connection.readyState === 1;
+
+    if (isDbConnected) {
+      // 1. MongoDB에서 삭제
+      const deleted = await TravelPlanModel.findByIdAndDelete(id);
+      if (!deleted) {
+        res.status(404).json({ error: '해당 식별자의 여행 계획을 찾을 수 없습니다.' });
+        return;
+      }
+      res.status(200).json({
+        success: true,
+        message: '여행 계획이 MongoDB 보관함에서 삭제되었습니다.',
+      });
+    } else {
+      // 2. 인메모리 데이터베이스에서 삭제
+      console.warn('[DB WARNING] MongoDB is offline. Deleting from temporary In-Memory Database.');
+      const initialLength = inMemoryDatabase.length;
+      inMemoryDatabase = inMemoryDatabase.filter(p => p._id !== id);
+      
+      if (inMemoryDatabase.length === initialLength) {
+        res.status(404).json({ error: '임시 보관함에서 해당 일정을 찾을 수 없습니다.' });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: '여행 계획이 임시 보관함에서 삭제되었습니다.',
+      });
+    }
+  } catch (error) {
+    console.error('deleteTravelPlan Controller Error:', error);
+    res.status(500).json({ error: '일정 삭제 처리 중 서버 오류가 발생했습니다.' });
   }
 };

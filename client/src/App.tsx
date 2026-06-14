@@ -11,6 +11,7 @@ import { CompanionSelector } from './components/CompanionSelector';
 import { DurationSelector } from './components/DurationSelector';
 import { LoadingScreen } from './components/LoadingScreen';
 import { TravelPlanView } from './components/TravelPlanView';
+import { SavedPlansView } from './components/SavedPlansView';
 import type { TravelPlan } from './components/TravelPlanView';
 
 /**
@@ -22,6 +23,9 @@ function App() {
   const [destination, setDestination] = useState('');
   const [selectedCompanion, setSelectedCompanion] = useState('solo');
   const [duration, setDuration] = useState(3);
+
+  // 뷰 컨트롤러 상태 ('home' | 'saved')
+  const [viewMode, setViewMode] = useState<'home' | 'saved'>('home');
 
   // 로딩 및 결과 상태 값
   const [isLoading, setIsLoading] = useState(false);
@@ -206,6 +210,7 @@ function App() {
       setDestination('');
       setSelectedCompanion('solo');
       setDuration(3);
+      setViewMode('home');
     } catch (error) {
       console.error('handleReset error:', error);
     }
@@ -214,6 +219,7 @@ function App() {
   /**
    * @function handleSavePlan
    * @description 현재 생성된 여행 계획을 백엔드 데이터베이스(MongoDB)에 저장합니다.
+   * 네트워크 에러 또는 오프라인 상태일 시 브라우저의 LocalStorage에 안전하게 저장합니다.
    */
   const handleSavePlan = async () => {
     if (!travelPlan) return;
@@ -240,8 +246,32 @@ function App() {
         alert(`저장 실패: ${errorData.error || '알 수 없는 서버 에러'}`);
       }
     } catch (error) {
-      console.error('handleSavePlan error:', error);
-      alert('서버 연결 실패로 일정을 저장하지 못했습니다.');
+      console.warn('Backend connection failed. Saving plan to browser LocalStorage...', error);
+      
+      try {
+        // 브라우저 LocalStorage에 임시 저장 처리
+        const rawLocalPlans = localStorage.getItem('voyago_local_plans') || '[]';
+        const localPlans = JSON.parse(rawLocalPlans);
+        
+        const newLocalPlan = {
+          _id: `local_${Date.now()}`,
+          destination: travelPlan.destination,
+          companion: travelPlan.companion,
+          duration: travelPlan.duration,
+          summary: travelPlan.summary,
+          days: travelPlan.days,
+          createdAt: new Date().toISOString(),
+          isLocal: true,
+        };
+        
+        localPlans.push(newLocalPlan);
+        localStorage.setItem('voyago_local_plans', JSON.stringify(localPlans));
+        
+        alert(`서버가 오프라인 상태여서, 브라우저 보관함(LocalStorage)에 일정이 임시 저장되었습니다!`);
+      } catch (localError) {
+        console.error('LocalStorage write error:', localError);
+        alert('로컬 브라우저 저장소 쓰기 실패로 일정을 저장하지 못했습니다.');
+      }
     }
   };
 
@@ -257,15 +287,35 @@ function App() {
               </div>
               <span className="text-xl font-bold tracking-tight text-white">Voyago</span>
             </div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest bg-slate-900 border border-slate-800 px-3 py-1 rounded-full">
-              AI Travel Planner
-            </span>
+            
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode(viewMode === 'saved' ? 'home' : 'saved');
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-700/60 bg-slate-900/40 text-sm font-semibold text-gray-300 hover:text-white hover:border-gray-500 transition-colors cursor-pointer"
+              >
+                {viewMode === 'saved' ? '일정 기획' : '내 보관함'}
+              </button>
+              <span className="hidden sm:inline-block text-xs font-semibold text-gray-500 uppercase tracking-widest bg-slate-900 border border-slate-800 px-3 py-1 rounded-full">
+                AI Travel Planner
+              </span>
+            </div>
           </div>
         </header>
 
         {/* 메인 컨텐츠 영역 */}
         <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-10 md:py-16">
-          {isLoading ? (
+          {viewMode === 'saved' ? (
+            <SavedPlansView
+              onSelectPlan={(plan) => {
+                setTravelPlan(plan);
+                setViewMode('home');
+              }}
+              onClose={() => setViewMode('home')}
+            />
+          ) : isLoading ? (
             <LoadingScreen destination={destination} />
           ) : travelPlan ? (
             <TravelPlanView plan={travelPlan} onReset={handleReset} onSave={handleSavePlan} />

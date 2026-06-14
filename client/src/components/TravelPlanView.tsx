@@ -5,11 +5,13 @@
 
 import React, { useState } from 'react';
 import { Calendar, MapPin, Users, Utensils, Compass, Moon, ChevronRight, RefreshCw, Bookmark } from 'lucide-react';
+import { TravelMap } from './TravelMap';
 
 // 여행 일정 관련 인터페이스들
 export interface Activity {
   time: string;
   place: string;
+  placeEn?: string;
   description: string;
   type: 'restaurant' | 'sightseeing' | 'transport' | 'hotel' | string;
 }
@@ -128,37 +130,45 @@ export const TravelPlanView: React.FC<TravelPlanViewProps> = ({ plan, onReset, o
           ))}
         </div>
 
-        {/* 선택 날짜 상세 계획 타임라인 */}
-        <div className="space-y-6">
-          <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/50">
-            <p className="text-sm text-cyan-400 font-semibold uppercase tracking-wider">오늘의 테마</p>
-            <h3 className="text-lg font-bold text-white mt-1">{currentDayPlan.theme}</h3>
+        {/* 선택 날짜 상세 계획 및 동선 지도 그리드 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 왼쪽: 타임라인 일정 (2/3 영역 차지) */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/50">
+              <p className="text-sm text-cyan-400 font-semibold uppercase tracking-wider">오늘의 테마</p>
+              <h3 className="text-lg font-bold text-white mt-1">{currentDayPlan.theme}</h3>
+            </div>
+
+            {/* 타임라인 바디 */}
+            <div className="relative pl-6 border-l-2 border-slate-800 space-y-8 ml-3">
+              {currentDayPlan.activities.map((activity, index) => (
+                <div key={index} className="relative group">
+                  {/* 타임라인 도트 포인트 */}
+                  <div className="absolute -left-[35px] top-1.5 flex items-center justify-center w-8 h-8 rounded-full bg-slate-900 border border-slate-700 group-hover:border-cyan-400 transition-colors shadow">
+                    {getActivityIcon(activity.type)}
+                  </div>
+
+                  <div className="space-y-1.5 pl-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xs font-bold text-cyan-400 px-2 py-0.5 rounded bg-cyan-950/30 border border-cyan-800/40">
+                        {activity.time}
+                      </span>
+                      <h4 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors">
+                        {activity.place}
+                      </h4>
+                    </div>
+                    <p className="text-sm text-gray-400 leading-relaxed max-w-3xl">
+                      {activity.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* 타임라인 바디 */}
-          <div className="relative pl-6 border-l-2 border-slate-800 space-y-8 ml-3">
-            {currentDayPlan.activities.map((activity, index) => (
-              <div key={index} className="relative group">
-                {/* 타임라인 도트 포인트 */}
-                <div className="absolute -left-[35px] top-1.5 flex items-center justify-center w-8 h-8 rounded-full bg-slate-900 border border-slate-700 group-hover:border-cyan-400 transition-colors shadow">
-                  {getActivityIcon(activity.type)}
-                </div>
-
-                <div className="space-y-1.5 pl-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-bold text-cyan-400 px-2 py-0.5 rounded bg-cyan-950/30 border border-cyan-800/40">
-                      {activity.time}
-                    </span>
-                    <h4 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors">
-                      {activity.place}
-                    </h4>
-                  </div>
-                  <p className="text-sm text-gray-400 leading-relaxed max-w-3xl">
-                    {activity.description}
-                  </p>
-                </div>
-              </div>
-            ))}
+          {/* 오른쪽: 가상 동선 지도 (1/3 영역 차지) */}
+          <div className="lg:col-span-1">
+            <TravelMap activities={currentDayPlan.activities} destination={plan.destination} />
           </div>
         </div>
       </div>

@@ -23,6 +23,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 interface Activity {
   time: string;
   place: string;
+  placeEn?: string;
   description: string;
   type: "restaurant" | "sightseeing" | "transport" | "hotel" | string;
 }
@@ -94,10 +95,12 @@ export const generateTravelPlan = async (
       2. Provide a unique "theme" (in Korean) for each day (e.g., "Day 1: 설레는 첫 만남, 핵심 도심 투어", "Day 2: 로컬 감성 골목 탐방").
       3. For each day, include 4 to 5 "activities" with realistic "time" (e.g., "10:00 AM", "01:00 PM"), place name ("place" in Korean), brief description of what to do ("description" in Korean), and "type" of activity.
       4. Valid activity types are: "restaurant" (for eating), "sightseeing" (for attractions), "transport" (for moving), and "hotel" (for checking in/resting).
-      5. Make sure each day has completely different, unique themes, locations, restaurants, and activities. DO NOT repeat the same places or descriptions across different days.
-      6. Provide a natural travel progression: Day 1 should focus on arrival/check-in/landmark introduction; the last day should focus on souvenir shopping, relaxed cafes, and departure.
-      7. The output MUST be in Korean except for JSON keys and time formats.
-      8. The output must strictly conform to the following JSON structure:
+      5. CRITICAL for map display: Every "place" MUST be a real, specific venue that actually exists in ${destination}. Use official or commonly known Korean names (e.g., "삿포로 TV 타워", "도쿄 타워"). NEVER use generic names like "로컬 맛집", "대표 랜드마크", or "감성 카페".
+      6. Also include "placeEn" for each activity: the official English or romanized name used on maps (e.g., "Sapporo TV Tower", "Tokyo Tower", "Senso-ji Temple"). This is required for geocoding.
+      7. Make sure each day has completely different, unique themes, locations, restaurants, and activities. DO NOT repeat the same places or descriptions across different days.
+      8. Provide a natural travel progression: Day 1 should focus on arrival/check-in/landmark introduction; the last day should focus on souvenir shopping, relaxed cafes, and departure.
+      9. The output MUST be in Korean except for JSON keys, time formats, and placeEn values.
+      10. The output must strictly conform to the following JSON structure:
       
       {
         "destination": "${destination}",
@@ -111,7 +114,8 @@ export const generateTravelPlan = async (
             "activities": [
               {
                 "time": "10:00 AM",
-                "place": "Place Name",
+                "place": "Place Name in Korean",
+                "placeEn": "Official English Name",
                 "description": "Activity description in Korean...",
                 "type": "sightseeing"
               }

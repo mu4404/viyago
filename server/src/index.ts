@@ -8,8 +8,10 @@ import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import mongoose from 'mongoose';
-import { createTravelPlan, saveTravelPlan, getSavedPlans } from './controllers/planController.js';
+import { createTravelPlan, saveTravelPlan, getSavedPlans, deleteTravelPlan } from './controllers/planController.js';
+import { geocodeActivities } from './controllers/geocodingController.js';
 
+// 환경 변수 설정 (.env 파일 로드)
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -61,6 +63,8 @@ app.get('/api/health', healthCheck);
 app.post('/api/plan', createTravelPlan);
 app.post('/api/plan/save', saveTravelPlan);
 app.get('/api/plan/saved', getSavedPlans);
+app.delete('/api/plan/:id', deleteTravelPlan);
+app.post('/api/geocode', geocodeActivities);
 
 /**
  * @function startServer
